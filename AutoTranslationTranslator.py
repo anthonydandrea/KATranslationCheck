@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import re as re
 from collections import Counter, defaultdict, namedtuple
-from ansicolor import red
+#from ansicolor import red
 import os.path
 import json
 import itertools
@@ -9,6 +9,8 @@ import random
 from toolz.dicttoolz import merge
 from AutoTranslateCommon import *
 from googletrans import Translator
+
+import requests
 
 class CompositeAutoTranslator(object):
     """
@@ -118,8 +120,9 @@ class IFPatternAutotranslator(object):
             # Safety: If there is nothing to replace, fail instead of
             # failing to translate a text tag
             if src not in transl:
-                print(red("Text-tag translation: Can't find '{}' in '{}'".format(
-                    src, transl), bold=True))
+                #print(red("Text-tag translation: Can't find '{}' in '{}'".format(
+                print("Text-tag translation: Can't find '{}' in '{}'".format(
+                    src, transl), bold=True)
                 return None
             transl = transl.replace(src, repl)
         return transl
@@ -371,10 +374,12 @@ class FullAutoTranslator(object):
                 if is_nested:
                     continue # no need to replace numeric by proto pattern
                 else: # not nested, fail!
-                    print(red("{} not found in '{}'".format(placeholder, s), bold=True))
+                    #print(red("{} not found in '{}'".format(placeholder, s), bold=True))
+                    print("{} not found in '{}'".format(placeholder, s), bold=True)
                     return None
             if s.count(placeholder) > 1:
-                print(red("Placeholder {} was duplicated in '{}'".format(placeholder, s), bold=True))
+                #print(red("Placeholder {} was duplicated in '{}'".format(placeholder, s), bold=True))
+                print("Placeholder {} was duplicated in '{}'".format(placeholder, s), bold=True)
                 return None
             # Replace by proto-placeholder which is a unicode char
             s = re.sub(r"\s*" + placeholder + r"\s*",
@@ -384,7 +389,8 @@ class FullAutoTranslator(object):
     def check_no_placeholders_present(self, s):
         for c in self.uchars:
             if c in s:
-                print(red("Found placeholder {} in '{}'".format(c, s), bold=True))
+                #print(red("Found placeholder {} in '{}'".format(c, s), bold=True))
+                print("Found placeholder {} in '{}'".format(c, s), bold=True)
                 return False
         return True
 
@@ -487,20 +493,27 @@ class FullAutoTranslator(object):
         #
         nAsterisksNew = self.combo_count(s, "*")
         if nAsterisksNew != info.nAsterisks:
-            print(red("* not reconstructed in '{}' engl '{}'".format(s, engl), bold=True))
+            #print(red("* not reconstructed in '{}' engl '{}'".format(s, engl), bold=True))
+            print("* not reconstructed in '{}' engl '{}'".format(s, engl), bold=True)
             return None
 
         nNewlinesNew = self.combo_count(s, "\\n")
         if nNewlinesNew != info.nNewlines:
-            print(red("\\n not reconstructed in '{}' engl '{}'".format(s, engl), bold=True))
+            #print(red("\\n not reconstructed in '{}' engl '{}'".format(s, engl), bold=True))
+            print("\\n not reconstructed in '{}' engl '{}'".format(s, engl), bold=True)
             return None
 
         nUnderscoresNew = self.combo_count(s, "_")
         if nUnderscoresNew != info.nUnderscores:
-            print(red("_ not reconstructed in '{}' engl '{}'".format(s, engl), bold=True))
+            #print(red("_ not reconstructed in '{}' engl '{}'".format(s, engl), bold=True))
+            print("_ not reconstructed in '{}' engl '{}'".format(s, engl), bold=True)
             return None
 
         return s
+    
+
+    def yandex_translate(self,txt):
+
 
     def google_translate(self, txt):
         translator = Translator()
@@ -508,17 +521,31 @@ class FullAutoTranslator(object):
         #translation = translate_client.translate( txt, target_language=lang)
         #return translation['translatedText']
         # partition: sv-SE => sv
-        result = translator.translate(txt, src="en", dest=self.lang.partition("-")[0])
-        return result.text
+        googleResult = translator.translate(txt, src="en", dest=self.lang.partition("-")[0])
+        
+        host = "https://translate.yandex.net/api/v1.5/tr.json/translate"
+        key = 'trnsl.1.1.20171202T133038Z.284a1f7f3c4c7f0f.3bc14c3826e10105dbf20850e33e1c84136d66e7'
+        yandexResult = requests.get(host, params={'key': key,'lang':'en-sv','text':txt})
+
+        yandexOutput = yandexResult.text[yandexResult.text.index('[')+2:yandexResult.text.index(']')-1]
+        results = {"Google Translate":googleResult.text, "Yandex Translate":yandexOutput}
+        print('\n')
+        for k in results:
+            print('Engine:',k)
+            print('Output:',results[k])
+            print('\n')
 
     def check_regex_equal(self, regex, s1, s2, desc):
         m1 = [m.group(0).strip() for m in regex.finditer(s1)]
         m2 = [m.group(0).strip() for m in regex.finditer(s2)]
         if m1 != m2:
-            print(red("Syntax comparison failed for {} regex:\n\t{}\n\t{}".format(
-                desc, str(m1), str(m2)), bold=True))
-            print(red("Original: {}".format(s1), bold=True))
-            print(red("Translated: {}".format(s2), bold=True))
+            #print(red("Syntax comparison failed for {} regex:\n\t{}\n\t{}".format(
+            print("Syntax comparison failed for {} regex:\n\t{}\n\t{}".format(
+                desc, str(m1), str(m2)), bold=True)
+            #print(red("Original: {}".format(s1), bold=True))
+            print("Original: {}".format(s1), bold=True)
+            #print(red("Translated: {}".format(s2), bold=True))
+            print("Translated: {}".format(s2), bold=True)
             return False
         return True
 
@@ -537,7 +564,8 @@ class FullAutoTranslator(object):
         # Check validity of placeholders (should yield original string)
         test_postproc = self.postproc(engl, engl_proc, info)
         if test_postproc != engl:
-            print(red("Validation reproduction failed: '{}' instead of '{}'".format(test_postproc, engl)))
+            #print(red("Validation reproduction failed: '{}' instead of '{}'".format(test_postproc, engl)))
+            print("Validation reproduction failed: '{}' instead of '{}'".format(test_postproc, engl))
             return None
         # Do actual preprocessing with possible subtranslation
         engl_proc, info = self.preproc(engl, subtranslate=True)
